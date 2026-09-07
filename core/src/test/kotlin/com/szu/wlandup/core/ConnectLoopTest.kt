@@ -54,6 +54,33 @@ class ConnectLoopTest {
     }
 
     @Test
+    fun successExitKeepsWifiAssociationWhileAbortTearsDown() {
+        assertEquals(false, ConnectLoopExit.Succeeded(ConnectResult.Success(1)).shouldTearDownWifi())
+        assertEquals(true, ConnectLoopExit.Stopped.shouldTearDownWifi())
+        assertEquals(true, ConnectLoopExit.CredentialsGone.shouldTearDownWifi())
+    }
+
+    @Test
+    fun successfulLoopDoesNotDisconnectAfterPortalAndBaiduOk() {
+        val wifi = FakeWifi()
+        val session = ConnectSession(
+            wifi = wifi,
+            portal = PortalClient { true },
+            probe = InternetProbe { true },
+            clock = Sleeper { },
+        )
+        val exit = ConnectLoop(
+            session = session,
+            loadCredentials = { Credentials("a", "b") },
+            shouldStop = { false },
+        ).run()
+
+        assertTrue(exit is ConnectLoopExit.Succeeded)
+        assertEquals(false, exit.shouldTearDownWifi())
+        assertEquals(0, wifi.disconnects.get(), "success path must not tear down Wi-Fi")
+    }
+
+    @Test
     fun deletedCredentialsAreNeverReusedOnNextIteration() {
         val stop = AtomicBoolean(false)
         val store = AtomicReference<Credentials?>(Credentials("old", "secret"))

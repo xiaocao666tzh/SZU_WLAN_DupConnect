@@ -31,6 +31,8 @@ class MainActivity : AppCompatActivity() {
     private val running = AtomicBoolean(false)
     /** Latched true on delete/destroy until the worker observes it and exits. */
     private val stopRequested = AtomicBoolean(false)
+    @Volatile
+    private var activeWifi: WifiConnector? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +50,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         stopRequested.set(true)
+        activeWifi?.disconnect()
+        activeWifi = null
         worker.shutdownNow()
         super.onDestroy()
     }
@@ -79,6 +83,8 @@ class MainActivity : AppCompatActivity() {
     private fun deleteCredentials() {
         // Keep stop latched until the worker exits — do not clear here.
         stopRequested.set(true)
+        activeWifi?.disconnect()
+        activeWifi = null
         credentialStore.delete()
         binding.logView.text = ""
         binding.statusText.text = getString(R.string.status_idle)
@@ -95,6 +101,7 @@ class MainActivity : AppCompatActivity() {
 
         worker.execute {
             val wifi = WifiConnector(this)
+            activeWifi = wifi
             try {
                 val session = ConnectSession(
                     wifi = wifi,
@@ -118,6 +125,11 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+                // Keep the authenticated association after success; tear down otherwise.
+                if (exit.shouldTearDownWifi()) {
+                    wifi.disconnect()
+                    if (activeWifi === wifi) activeWifi = null
+                }
                 when (exit) {
                     is ConnectLoopExit.Succeeded -> runOnUiThread {
                         binding.statusText.text = "联网成功"
@@ -130,7 +142,6 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } finally {
-                wifi.disconnect()
                 running.set(false)
             }
         }

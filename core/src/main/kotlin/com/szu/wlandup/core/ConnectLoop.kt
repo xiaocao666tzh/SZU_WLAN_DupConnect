@@ -30,4 +30,13 @@ sealed class ConnectLoopExit {
     data class Succeeded(val result: ConnectResult.Success) : ConnectLoopExit()
     data object Stopped : ConnectLoopExit()
     data object CredentialsGone : ConnectLoopExit()
+
+    /**
+     * After a successful portal+baidu path the authenticated association must stay up.
+     * Tear down only when the loop aborted (stop/delete) or credentials vanished.
+     */
+    fun shouldTearDownWifi(): Boolean = when (this) {
+        is Succeeded -> false
+        Stopped, CredentialsGone -> true
+    }
 }

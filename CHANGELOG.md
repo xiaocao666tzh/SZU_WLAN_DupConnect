@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.2] - 2026-09-07
+
+### Fixed
+- Keep the authenticated Wi-Fi association after success; only disconnect on stop/delete/destroy or failed loops
+
 ## [1.0.1] - 2026-09-07
 
 ### Fixed
