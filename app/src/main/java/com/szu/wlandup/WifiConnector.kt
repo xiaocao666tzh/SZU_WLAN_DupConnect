@@ -9,7 +9,12 @@ import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
 import android.os.PatternMatcher
+import com.szu.wlandup.core.ConfiguredWifiNetwork
+import com.szu.wlandup.core.LegacyWifiControls
+import com.szu.wlandup.core.LegacyWifiTeardown
+import com.szu.wlandup.core.PortalLogin
 import com.szu.wlandup.core.WifiController
+import com.szu.wlandup.core.applyTo
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -23,6 +28,9 @@ class WifiConnector(private val context: Context) : WifiController {
     @Volatile
     private var boundNetwork: Network? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
+
+    @Volatile
+    private var legacyNetId: Int? = null
 
     override fun connect(ssid: String): Boolean {
         if (!wifiManager.isWifiEnabled) {
@@ -49,6 +57,39 @@ class WifiConnector(private val context: Context) : WifiController {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             connectivity.bindProcessToNetwork(null)
         }
+        tearDownLegacyWifi()
+    }
+
+    private fun tearDownLegacyWifi() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            legacyNetId = null
+            return
+        }
+        @Suppress("DEPRECATION")
+        val configured = try {
+            wifiManager.configuredNetworks.orEmpty().map {
+                ConfiguredWifiNetwork(it.networkId, it.SSID ?: "")
+            }
+        } catch (_: SecurityException) {
+            emptyList()
+        }
+        val plan = LegacyWifiTeardown.plan(
+            activeNetId = legacyNetId,
+            targetSsid = PortalLogin.TARGET_SSID,
+            configuredNetworks = configured,
+        )
+        plan.applyTo(object : LegacyWifiControls {
+            @Suppress("DEPRECATION")
+            override fun disconnectRadio() {
+                wifiManager.disconnect()
+            }
+
+            @Suppress("DEPRECATION")
+            override fun disableNetwork(networkId: Int) {
+                wifiManager.disableNetwork(networkId)
+            }
+        })
+        legacyNetId = null
     }
 
     private fun connectWithSpecifier(ssid: String): Boolean {
@@ -90,6 +131,7 @@ class WifiConnector(private val context: Context) : WifiController {
         }
         val netId = wifiManager.addNetwork(conf)
         if (netId == -1) return false
+        legacyNetId = netId
         wifiManager.disconnect()
         val enabled = wifiManager.enableNetwork(netId, true)
         wifiManager.reconnect()

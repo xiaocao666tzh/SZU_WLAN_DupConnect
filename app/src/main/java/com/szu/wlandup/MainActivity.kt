@@ -12,6 +12,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.szu.wlandup.core.ConnectLoop
+import com.szu.wlandup.core.ConnectLoopExit
 import com.szu.wlandup.core.ConnectResult
 import com.szu.wlandup.core.ConnectSession
 import com.szu.wlandup.core.CredentialStore
@@ -27,7 +29,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var credentialStore: CredentialStore
     private val worker = Executors.newSingleThreadExecutor()
     private val running = AtomicBoolean(false)
-    private var stopRequested = AtomicBoolean(false)
+    /** Latched true on delete/destroy until the worker observes it and exits. */
+    private val stopRequested = AtomicBoolean(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,49 +77,62 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun deleteCredentials() {
+        // Keep stop latched until the worker exits — do not clear here.
         stopRequested.set(true)
         credentialStore.delete()
         binding.logView.text = ""
         binding.statusText.text = getString(R.string.status_idle)
-        stopRequested.set(false)
-        renderCredentialGate()
+        binding.credentialCard.visibility = View.VISIBLE
+        binding.savedActions.visibility = View.GONE
     }
 
     private fun startLoop() {
-        val creds = credentialStore.load() ?: return
+        if (credentialStore.load() == null) return
         if (!running.compareAndSet(false, true)) return
+        // Clear stop only when intentionally starting a fresh loop.
         stopRequested.set(false)
         binding.statusText.text = "正在联网…"
 
         worker.execute {
-            val session = ConnectSession(
-                wifi = WifiConnector(this),
-                portal = HttpPortalClient(),
-                probe = HttpBaiduProbe(),
-            )
-            while (!stopRequested.get()) {
-                publishLogs(session.logs())
-                val result = session.runOnce(creds)
-                when (result) {
-                    is ConnectResult.Success -> {
-                        publishLogs(emptyList())
-                        runOnUiThread {
-                            binding.statusText.text = "联网成功"
-                            showSuccessDialog(result.attemptsUsed)
-                            running.set(false)
-                        }
-                        return@execute
-                    }
-                    is ConnectResult.Failure -> {
-                        publishLogs(session.logs())
-                        runOnUiThread {
-                            binding.statusText.text =
-                                "失败(${result.attemptCount})：${result.reason}，重试中…"
+            val wifi = WifiConnector(this)
+            try {
+                val session = ConnectSession(
+                    wifi = wifi,
+                    portal = HttpPortalClient(),
+                    probe = HttpBaiduProbe(),
+                )
+                val loop = ConnectLoop(
+                    session = session,
+                    loadCredentials = { credentialStore.load() },
+                    shouldStop = { stopRequested.get() },
+                )
+                val exit = loop.run { result ->
+                    when (result) {
+                        is ConnectResult.Success -> publishLogs(emptyList())
+                        is ConnectResult.Failure -> {
+                            publishLogs(session.logs())
+                            runOnUiThread {
+                                binding.statusText.text =
+                                    "失败(${result.attemptCount})：${result.reason}，重试中…"
+                            }
                         }
                     }
                 }
+                when (exit) {
+                    is ConnectLoopExit.Succeeded -> runOnUiThread {
+                        binding.statusText.text = "联网成功"
+                        showSuccessDialog(exit.result.attemptsUsed)
+                    }
+                    ConnectLoopExit.CredentialsGone, ConnectLoopExit.Stopped -> runOnUiThread {
+                        if (credentialStore.load() == null) {
+                            binding.statusText.text = getString(R.string.status_idle)
+                        }
+                    }
+                }
+            } finally {
+                wifi.disconnect()
+                running.set(false)
             }
-            running.set(false)
         }
     }
 
@@ -134,7 +150,6 @@ class MainActivity : AppCompatActivity() {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_success, null)
         val countView = view.findViewById<TextView>(R.id.successCount)
         countView.text = attempts.toString()
-        // Keep full sentence available for audit/accessibility as content description.
         view.contentDescription = exact
 
         MaterialAlertDialogBuilder(this)

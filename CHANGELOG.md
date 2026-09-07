@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.1] - 2026-09-07
+
+### Fixed
+- Keep connect-loop stop latch set after credential delete so deleted accounts are never reused mid-retry
+- Perform real Wi-Fi disconnect/disable on API 26–28 legacy path during failure→retry
+
 ## [1.0.0] - 2026-09-07
 
 ### Added
