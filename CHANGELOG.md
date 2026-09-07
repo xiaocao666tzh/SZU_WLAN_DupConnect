@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.3] - 2026-09-07
+
+### Changed
+- GitHub Release notes now include only this version's changelog section
+- Release APK is signed with the project release keystore
+
 ## [1.0.2] - 2026-09-07
 
 ### Fixed

@@ -16,3 +16,7 @@ gen/
 out/
 .kotlin/
 .tmp-core-test/
+*.jks
+*.keystore
+keystore.properties
+release-notes.md

@@ -30,10 +30,27 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Decode release keystore
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SIGNING_KEYSTORE_BASE64:-}" ]; then
+            echo "SIGNING_KEYSTORE_BASE64 secret is required for signed release builds" >&2
+            exit 1
+          fi
+          echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "${GITHUB_WORKSPACE}/szu-release.jks"
+          echo "KEYSTORE_PATH=${GITHUB_WORKSPACE}/szu-release.jks" >> "$GITHUB_ENV"
+
       - name: Unit tests (core)
         run: ./gradlew :core:test --stacktrace
 
-      - name: Build release APK
+      - name: Build signed release APK
+        env:
+          SIGNING_STORE_FILE: ${{ github.workspace }}/szu-release.jks
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease --stacktrace
 
       - name: Upload APK artifact
@@ -59,7 +76,42 @@ jobs:
             echo "changelog_ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "changelog_ok=false" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
+
+      - name: Extract this version's release notes
+        id: notes
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.version.outputs.is_new == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" {p=1}
+            p && NR>1 && $0 ~ /^## \[/ {exit}
+            p {print}
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Failed to extract changelog section for $VERSION" >&2
+            exit 1
+          fi
+          echo "Extracted release notes:"
+          cat release-notes.md
+
+      - name: Name signed APK for release
+        id: apk
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.version.outputs.is_new == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          SRC=$(ls app/build/outputs/apk/release/*.apk | head -n1)
+          DEST="SZU_WLAN_DupConnect-${VERSION}.apk"
+          cp "$SRC" "$DEST"
+          echo "path=$DEST" >> "$GITHUB_OUTPUT"
+          # Require a verifiable signature on the release APK
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
+          "$APKSIGNER" verify --print-certs "$DEST"
 
       - name: Publish GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.version.outputs.is_new == 'true'
@@ -67,7 +119,7 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
-          body_path: CHANGELOG.md
-          files: app/build/outputs/apk/release/*.apk
+          body_path: release-notes.md
+          files: ${{ steps.apk.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
