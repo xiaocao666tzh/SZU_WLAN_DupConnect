@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.4] - 2026-09-07
+
+### Changed
+- Portal login now mirrors the campus curl to `172.30.255.42:801` with `user_account=,0,<id>`, full query params, browser headers, and success gated on HTTP 200 then baidu reachability
+- `wlan_user_ip` is taken from the device Wi-Fi IPv4 address
+
 ## [1.0.3] - 2026-09-07
 
 ### Changed

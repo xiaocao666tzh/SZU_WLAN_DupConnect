@@ -2,6 +2,7 @@
 <network-security-config>
     <!-- Portal is plain HTTP on campus LAN -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">172.30.225.42</domain>
+        <domain includeSubdomains="false">172.30.255.42</domain>
+        <domain includeSubdomains="false">172.30.255.41</domain>
     </domain-config>
 </network-security-config>
