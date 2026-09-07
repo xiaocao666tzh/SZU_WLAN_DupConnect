@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SzuWlanDup" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">#0B5FFF</item>
+        <item name="colorPrimaryVariant">#0847C7</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#00A3A1</item>
+        <item name="android:statusBarColor">#0847C7</item>
+        <item name="android:windowBackground">#F5F7FB</item>
+    </style>
+</resources>

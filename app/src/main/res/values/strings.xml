@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">深大一键联网</string>
+    <string name="hint_account">校园卡号</string>
+    <string name="hint_password">密码</string>
+    <string name="action_save_connect">保存并开始联网</string>
+    <string name="action_delete_creds">删除已保存账号</string>
+    <string name="action_start">开始联网</string>
+    <string name="status_idle">准备就绪</string>
+    <string name="log_title">日志</string>
+    <string name="success_prefix">我在深大联网仅用</string>
+    <string name="success_suffix">次就联网成功，你也快来试试吧</string>
+    <string name="success_ok">好的</string>
+</resources>

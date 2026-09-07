@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Portal is plain HTTP on campus LAN -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">172.30.225.42</domain>
+    </domain-config>
+</network-security-config>
