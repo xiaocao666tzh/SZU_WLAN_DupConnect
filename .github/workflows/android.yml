@@ -86,17 +86,23 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
-          awk -v ver="$VERSION" '
-            $0 ~ "^## \\[" ver "\\]" {p=1}
-            p && NR>1 && $0 ~ /^## \[/ {exit}
-            p {print}
-          ' CHANGELOG.md > release-notes.md
-          if [ ! -s release-notes.md ]; then
-            echo "Failed to extract changelog section for $VERSION" >&2
-            exit 1
-          fi
-          echo "Extracted release notes:"
-          cat release-notes.md
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+          version = os.environ["VERSION"]
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+          pattern = re.compile(
+              rf"(?ms)^## \[{re.escape(version)}\][^\n]*\n.*?(?=^## \[|\Z)"
+          )
+          match = pattern.search(text)
+          if not match:
+              raise SystemExit(f"Failed to extract changelog section for {version}")
+          notes = match.group(0).strip() + "\n"
+          Path("release-notes.md").write_text(notes, encoding="utf-8")
+          print(notes)
+          PY
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Name signed APK for release
         id: apk
