@@ -105,8 +105,9 @@ class MainActivity : AppCompatActivity() {
             try {
                 val session = ConnectSession(
                     wifi = wifi,
-                    portal = HttpPortalClient(this@MainActivity),
+                    portal = DualZonePortalClient(this@MainActivity),
                     probe = HttpBaiduProbe(),
+                    inspector = AndroidNetworkInspector(this@MainActivity),
                 )
                 val loop = ConnectLoop(
                     session = session,

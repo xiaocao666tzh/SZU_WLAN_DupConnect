@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Portal is plain HTTP on campus LAN -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">172.30.255.42</domain>
-        <domain includeSubdomains="false">172.30.255.41</domain>
-    </domain-config>
+    <!--
+      Campus auth uses cleartext HTTP on the dorm eportal and sometimes on the
+      teaching-area fallback origin after logout (gateway 302 path).
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
 </network-security-config>

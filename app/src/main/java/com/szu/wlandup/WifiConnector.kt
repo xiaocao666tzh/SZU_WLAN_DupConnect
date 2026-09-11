@@ -9,10 +9,10 @@ import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
 import android.os.PatternMatcher
+import com.szu.wlandup.core.CampusNetworks
 import com.szu.wlandup.core.ConfiguredWifiNetwork
 import com.szu.wlandup.core.LegacyWifiControls
 import com.szu.wlandup.core.LegacyWifiTeardown
-import com.szu.wlandup.core.PortalLogin
 import com.szu.wlandup.core.WifiController
 import com.szu.wlandup.core.applyTo
 import java.util.concurrent.CountDownLatch
@@ -75,7 +75,7 @@ class WifiConnector(private val context: Context) : WifiController {
         }
         val plan = LegacyWifiTeardown.plan(
             activeNetId = legacyNetId,
-            targetSsid = PortalLogin.TARGET_SSID,
+            targetSsids = CampusNetworks.CONNECT_ORDER,
             configuredNetworks = configured,
         )
         plan.applyTo(object : LegacyWifiControls {
