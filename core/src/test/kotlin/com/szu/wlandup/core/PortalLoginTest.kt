@@ -71,4 +71,13 @@ class PortalLoginTest {
         assertTrue(url.contains("wlan_ac_ip=172.30.255.41"))
         assertFalse(url.contains("172.30.225.42"))
     }
+
+    @Test
+    fun dormSuccessRequiresResultBodyNotJustHttpOk() {
+        assertTrue(PortalLogin.isDormLoginSuccess("""dr1003({"result":1,"msg":"认证成功"})"""))
+        assertTrue(PortalLogin.isDormLoginSuccess("已经在线"))
+        assertTrue(PortalLogin.isDormLoginSuccess("认证成功"))
+        assertFalse(PortalLogin.isDormLoginSuccess("""dr1003({"result":0,"msg":"密码错误"})"""))
+        assertFalse(PortalLogin.isDormLoginSuccess(""))
+    }
 }

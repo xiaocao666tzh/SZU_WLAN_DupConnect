@@ -5,17 +5,20 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 /**
- * Campus portal login shaped like:
+ * Dormitory Dr.COM eportal login shaped like:
  * curl 'http://172.30.255.42:801/eportal/portal/login?callback=dr1003&login_method=1&user_account=,0,<Account>&...'
+ *
+ * Teaching-area Srun helpers live in [SrunLogin].
  */
 object PortalLogin {
-    const val HOST = "172.30.255.42"
-    const val PORT = 801
+    const val HOST = CampusNetworks.DORM_PORTAL_HOST
+    const val PORT = CampusNetworks.DORM_PORTAL_PORT
     const val PATH = "/eportal/portal/login"
     const val PARAM_ACCOUNT = "user_account"
     const val PARAM_PASSWORD = "user_password"
+    /** @deprecated Use [CampusNetworks.DORM_SSIDS] / [CampusNetworks.CONNECT_ORDER]. */
     const val TARGET_SSID = "SZU_CTC&CMCC"
-    const val BAIDU_PROBE_URL = "https://www.baidu.com"
+    const val BAIDU_PROBE_URL = CampusNetworks.BAIDU_PROBE_URL
     const val WLAN_AC_IP = "172.30.255.41"
     const val REFERER = "http://$HOST/"
     const val USER_AGENT =
@@ -58,6 +61,17 @@ object PortalLogin {
         credentials: Credentials,
         network: PortalNetworkContext,
     ): URI = URI(buildLoginUrl(credentials, network))
+
+    /**
+     * Dorm eportal success: JSONP `result: 1`, or already-online / auth-success text.
+     * HTTP 200 alone is not enough (portal often returns 200 with an error body).
+     */
+    fun isDormLoginSuccess(body: String): Boolean {
+        if (Regex(""""result"\s*:\s*1""").containsMatchIn(body)) return true
+        if (body.contains("已经在线")) return true
+        if (body.contains("认证成功")) return true
+        return false
+    }
 
     private fun urlEncode(value: String): String =
         URLEncoder.encode(value, StandardCharsets.UTF_8.name())
