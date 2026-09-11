@@ -44,4 +44,18 @@ class LegacyWifiTeardownTest {
         assertEquals(listOf("radio"), disconnected)
         assertEquals(listOf(4), disabled)
     }
+
+    @Test
+    fun planDisablesAllCampusSsids() {
+        val plan = LegacyWifiTeardown.plan(
+            activeNetId = 1,
+            targetSsids = CampusNetworks.CONNECT_ORDER,
+            configuredNetworks = listOf(
+                ConfiguredWifiNetwork(1, "\"SZU_CTC&CMCC\""),
+                ConfiguredWifiNetwork(2, "\"SZU_WLAN\""),
+                ConfiguredWifiNetwork(3, "\"Home\""),
+            ),
+        )
+        assertEquals(listOf(1, 2), plan.disableNetworkIds)
+    }
 }

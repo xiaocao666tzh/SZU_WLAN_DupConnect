@@ -8,10 +8,11 @@ class ConnectSessionTest {
     private class FakeWifi : WifiController {
         var connectedSsid: String? = null
         var disconnectCount = 0
-        var connectResult = true
+        var connectResultBySsid: Map<String, Boolean> = CampusNetworks.CONNECT_ORDER.associateWith { true }
         override fun connect(ssid: String): Boolean {
-            connectedSsid = ssid
-            return connectResult
+            val ok = connectResultBySsid[ssid] == true
+            connectedSsid = if (ok) ssid else null
+            return ok
         }
         override fun disconnect() {
             disconnectCount++
@@ -19,16 +20,29 @@ class ConnectSessionTest {
         }
     }
 
-    private class FakePortal(var ok: Boolean = true) : PortalClient {
+    private class FakePortal(
+        var dormOk: Boolean = true,
+        var teachOk: Boolean = true,
+    ) : ZonePortalClient {
+        var lastZone: CampusZone? = null
         var lastCreds: Credentials? = null
-        override fun login(credentials: Credentials): Boolean {
+        override fun login(zone: CampusZone, credentials: Credentials): Boolean {
+            lastZone = zone
             lastCreds = credentials
-            return ok
+            return when (zone) {
+                CampusZone.DORM -> dormOk
+                CampusZone.TEACH -> teachOk
+                CampusZone.NONE -> false
+            }
         }
     }
 
     private class FakeProbe(var ok: Boolean = true) : InternetProbe {
         override fun canReachBaidu(): Boolean = ok
+    }
+
+    private class FakeInspector(var snapshot: NetworkSnapshot = NetworkSnapshot()) : NetworkInspector {
+        override fun snapshot(): NetworkSnapshot = snapshot
     }
 
     private class RecordingSleeper : Sleeper {
@@ -41,9 +55,9 @@ class ConnectSessionTest {
     @Test
     fun failureIncrementsCounterDisconnectsAndWaits3s() {
         val wifi = FakeWifi()
-        val portal = FakePortal(ok = false)
+        val portal = FakePortal(dormOk = false)
         val sleeper = RecordingSleeper()
-        val session = ConnectSession(wifi, portal, FakeProbe(), sleeper)
+        val session = ConnectSession(wifi, portal, FakeProbe(), FakeInspector(), sleeper)
 
         val result = session.runOnce(Credentials("a", "b"))
 
@@ -60,17 +74,16 @@ class ConnectSessionTest {
     @Test
     fun successOnlyAfterBaiduProbeThenResetsCounterAndLogs() {
         val wifi = FakeWifi()
-        val portal = FakePortal(ok = true)
+        val portal = FakePortal(dormOk = true)
         val probe = FakeProbe(ok = true)
         val sleeper = RecordingSleeper()
-        val session = ConnectSession(wifi, portal, probe, sleeper)
+        val session = ConnectSession(wifi, portal, probe, FakeInspector(), sleeper)
 
-        // Simulate a prior failure so counter is non-zero before success.
-        portal.ok = false
+        portal.dormOk = false
         session.runOnce(Credentials("a", "b"))
         assertEquals(1, session.attemptCount)
 
-        portal.ok = true
+        portal.dormOk = true
         probe.ok = false
         val failProbe = session.runOnce(Credentials("a", "b"))
         assertTrue(failProbe is ConnectResult.Failure)
@@ -84,9 +97,53 @@ class ConnectSessionTest {
         assertEquals(3, s.attemptsUsed)
         assertEquals(0, session.attemptCount)
         assertTrue(session.logs().isEmpty())
-        assertEquals(PortalLogin.TARGET_SSID, wifi.connectedSsid)
+        assertEquals(CampusNetworks.DORM_SSIDS.first(), wifi.connectedSsid)
+        assertEquals(CampusZone.DORM, portal.lastZone)
         assertEquals(Credentials("a", "b"), portal.lastCreds)
         assertEquals(listOf(3_000L, 3_000L), sleeper.sleeps)
+    }
+
+    @Test
+    fun fallsBackToTeachSsidAndUsesTeachPortal() {
+        val wifi = FakeWifi().apply {
+            connectResultBySsid = mapOf(
+                "SZU_CTC&CMCC" to false,
+                "SZU_WLAN" to true,
+                "SZU-WLAN" to false,
+            )
+        }
+        val portal = FakePortal(teachOk = true)
+        val session = ConnectSession(
+            wifi = wifi,
+            portal = portal,
+            probe = FakeProbe(true),
+            inspector = FakeInspector(NetworkSnapshot(ssid = "SZU_WLAN")),
+            clock = RecordingSleeper(),
+        )
+
+        val result = session.runOnce(Credentials("u", "p"))
+        assertTrue(result is ConnectResult.Success)
+        assertEquals("SZU_WLAN", wifi.connectedSsid)
+        assertEquals(CampusZone.TEACH, portal.lastZone)
+        assertEquals(CampusZone.TEACH, session.lastZone)
+    }
+
+    @Test
+    fun unknownZoneFailsAfterConnect() {
+        val wifi = FakeWifi().apply {
+            connectResultBySsid = mapOf("GuestNet" to true)
+        }
+        val session = ConnectSession(
+            wifi = wifi,
+            portal = FakePortal(),
+            probe = FakeProbe(true),
+            inspector = FakeInspector(NetworkSnapshot(ssid = "GuestNet")),
+            clock = RecordingSleeper(),
+            ssidOrder = listOf("GuestNet"),
+        )
+        val result = session.runOnce(Credentials("u", "p"))
+        assertTrue(result is ConnectResult.Failure)
+        assertEquals(1, wifi.disconnectCount)
     }
 
     @Test

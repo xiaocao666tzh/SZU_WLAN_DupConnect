@@ -14,15 +14,23 @@ object LegacyWifiTeardown {
         activeNetId: Int?,
         targetSsid: String,
         configuredNetworks: List<ConfiguredWifiNetwork>,
+    ): LegacyWifiTeardownPlan = plan(
+        activeNetId = activeNetId,
+        targetSsids = listOf(targetSsid),
+        configuredNetworks = configuredNetworks,
+    )
+
+    fun plan(
+        activeNetId: Int?,
+        targetSsids: List<String>,
+        configuredNetworks: List<ConfiguredWifiNetwork>,
     ): LegacyWifiTeardownPlan {
-        val quoted = "\"$targetSsid\""
+        val matchSsids = targetSsids.flatMap { ssid -> listOf(ssid, "\"$ssid\"") }.toSet()
         val ids = linkedSetOf<Int>()
         activeNetId?.let { ids += it }
         configuredNetworks
             .filter { net ->
-                net.networkId == activeNetId ||
-                    net.ssid == quoted ||
-                    net.ssid == targetSsid
+                net.networkId == activeNetId || net.ssid in matchSsids
             }
             .forEach { ids += it.networkId }
         return LegacyWifiTeardownPlan(

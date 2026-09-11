@@ -16,9 +16,9 @@ class ConnectLoopTest {
         }
     }
 
-    private class FakePortal(private val okUntil: AtomicInteger) : PortalClient {
+    private class FakePortal(private val okUntil: AtomicInteger) : ZonePortalClient {
         val logins = mutableListOf<Credentials>()
-        override fun login(credentials: Credentials): Boolean {
+        override fun login(zone: CampusZone, credentials: Credentials): Boolean {
             logins += credentials
             return okUntil.getAndDecrement() <= 0
         }
@@ -65,7 +65,7 @@ class ConnectLoopTest {
         val wifi = FakeWifi()
         val session = ConnectSession(
             wifi = wifi,
-            portal = PortalClient { true },
+            portal = ZonePortalClient { _, _ -> true },
             probe = InternetProbe { true },
             clock = Sleeper { },
         )
