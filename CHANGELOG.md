@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.1.0] - 2026-09-11
+
+### Added
+- Dual-zone campus auth aligned with [szu-net-autologin-mac](https://github.com/JennieYow/szu-net-autologin-mac): dorm `SZU_CTC&CMCC` (Dr.COM eportal) and teach `SZU_WLAN`/`SZU-WLAN` (Srun)
+- Zone detection via SSID, IP prefix (`172.24.*` / `172.26.*`), and auth-server probing
+- Teaching-area Srun pipeline: challenge, HMAC-MD5, XXTEA, custom base64, SHA1 chksum, dynamic `ac_id`, captive-portal origin fallback
+
+### Changed
+- Auto-connect tries dorm then teach SSIDs before portal login
+- Dorm eportal success now requires JSONP `result:1` / success text, not HTTP 200 alone
+
 ## [1.0.4] - 2026-09-07
 
 ### Changed
